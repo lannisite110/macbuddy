@@ -14,7 +14,7 @@ final class SessionStoreTests: XCTestCase {
             try store.insertSession(
                 SessionMetadata(title: "Session \(i)", updatedAt: Date(timeIntervalSince1970: Double(i)), origin: .chat)
             )
-            try store.insertMessage(sessionId: store.lastInsertedSessionId!, role: "user", body: String(repeating: "x", count: 40_000))
+            _ = try store.insertMessage(sessionId: store.lastInsertedSessionId!, role: "user", body: String(repeating: "x", count: 40_000))
         }
 
         let metadata = try store.fetchRecentSessionMetadata(limit: 50)

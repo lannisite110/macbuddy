@@ -4,6 +4,7 @@ public enum PerfEventKind: String, Codable, Sendable {
     case coldStart
     case hotkeyToVisible
     case firstKeystroke
+    case firstToken
 }
 
 public struct PerfEvent: Codable, Equatable, Sendable {
