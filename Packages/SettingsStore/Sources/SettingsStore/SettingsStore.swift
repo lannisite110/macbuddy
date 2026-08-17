@@ -50,6 +50,14 @@ public struct SettingsStore: Sendable {
     public func deleteAPIKey() {
         KeychainHelper.delete(service: Self.keychainService, account: Self.keychainAccount)
     }
+
+    public func saveLastWorkspacePath(_ path: String) {
+        UserDefaults.standard.set(path, forKey: "com.macbuddy.lastWorkspacePath")
+    }
+
+    public func loadLastWorkspacePath() -> String? {
+        UserDefaults.standard.string(forKey: "com.macbuddy.lastWorkspacePath")
+    }
 }
 
 enum KeychainHelper {

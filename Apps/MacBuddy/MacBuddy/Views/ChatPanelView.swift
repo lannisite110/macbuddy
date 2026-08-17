@@ -5,12 +5,31 @@ struct ChatPanelView: View {
     @EnvironmentObject private var appState: AppState
     @StateObject private var chat = ChatViewModel()
     @ObservedObject private var work = WorkCoordinator.shared
+    @ObservedObject private var code = CodeCoordinator.shared
     @FocusState private var composerFocused: Bool
     @State private var draft = ""
     let onComposerReady: () -> Void
 
     var body: some View {
         VStack(spacing: 0) {
+            HStack {
+                if code.isWorkspaceOpen, let name = code.workspaceName {
+                    Text("📁 \(name)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                if code.isWorkspaceOpen {
+                    Button("Close Project") { code.closeWorkspace() }
+                        .font(.caption)
+                } else {
+                    Button("Open Project") { code.openFolder() }
+                        .font(.caption)
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.top, 8)
+
             SessionListView(onSelect: { id in
                 chat.selectSession(id, appState: appState)
             }, onNewChat: {
@@ -20,7 +39,7 @@ struct ChatPanelView: View {
 
             Divider()
 
-            if let banner = chat.errorBanner ?? work.errorMessage {
+            if let banner = chat.errorBanner ?? work.errorMessage ?? code.errorMessage {
                 Text(banner)
                     .font(.caption)
                     .foregroundStyle(.red)
@@ -28,10 +47,10 @@ struct ChatPanelView: View {
                     .padding(.top, 6)
             }
 
-            if work.isRunning {
+            if work.isRunning || code.isBusy {
                 HStack {
                     ProgressView().controlSize(.small)
-                    Text("Running work action…")
+                    Text(code.isBusy ? "Running code action…" : "Running work action…")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -71,7 +90,7 @@ struct ChatPanelView: View {
                     send()
                 }
                 .keyboardShortcut(.return, modifiers: [.command])
-                .disabled(chat.isGenerating || draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .disabled(chat.isGenerating || code.isBusy || work.isRunning || draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 6)
@@ -95,6 +114,18 @@ struct ChatPanelView: View {
                 onDismiss: { work.activeResult = nil }
             )
         }
+        .sheet(item: $code.activePreview) { preview in
+            DiffPreviewView(
+                preview: preview,
+                onApply: { code.applyPreview(preview) },
+                onDecline: { code.activePreview = nil }
+            )
+        }
+        .sheet(isPresented: Binding(get: { code.gitOutput != nil }, set: { if !$0 { code.gitOutput = nil } })) {
+            if let output = code.gitOutput {
+                GitOutputView(title: "Git Output", text: output, onDismiss: { code.gitOutput = nil })
+            }
+        }
         .onAppear {
             LaunchTiming.markComposerReady(telemetry: appState.telemetry)
             onComposerReady()
@@ -108,7 +139,11 @@ struct ChatPanelView: View {
     private func send() {
         let text = draft
         draft = ""
-        chat.send(text: text, appState: appState)
+        if code.isWorkspaceOpen {
+            code.handleCodeRequest(text)
+        } else {
+            chat.send(text: text, appState: appState)
+        }
     }
 
     private func handleDrop(_ providers: [NSItemProvider]) -> Bool {

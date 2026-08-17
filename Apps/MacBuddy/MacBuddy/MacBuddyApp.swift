@@ -43,6 +43,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.setSubmenu(workMenu, for: workRoot)
         menu.addItem(workRoot)
 
+        let codeMenu = NSMenu()
+        codeMenu.addItem(withTitle: "Open Workspace…", action: #selector(openWorkspace), keyEquivalent: "")
+        codeMenu.addItem(withTitle: "Close Workspace", action: #selector(closeWorkspace), keyEquivalent: "")
+        codeMenu.addItem(.separator())
+        codeMenu.addItem(withTitle: "Explain Git Diff", action: #selector(explainGitDiff), keyEquivalent: "")
+        codeMenu.addItem(withTitle: "Explain Git Log", action: #selector(explainGitLog), keyEquivalent: "")
+        for item in codeMenu.items { item.target = self }
+
+        let codeRoot = NSMenuItem(title: "Code", action: nil, keyEquivalent: "")
+        menu.setSubmenu(codeMenu, for: codeRoot)
+        menu.addItem(codeRoot)
+
         menu.addItem(
             withTitle: "Settings…",
             action: #selector(openSettings),
@@ -82,6 +94,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func summarizeFile() {
         ChatWindowController.shared.show(focusComposer: {})
         WorkCoordinator.shared.summarizeFile()
+    }
+
+    @objc private func openWorkspace() {
+        ChatWindowController.shared.show(focusComposer: {})
+        CodeCoordinator.shared.openFolder()
+    }
+
+    @objc private func closeWorkspace() {
+        CodeCoordinator.shared.closeWorkspace()
+    }
+
+    @objc private func explainGitDiff() {
+        ChatWindowController.shared.show(focusComposer: {})
+        CodeCoordinator.shared.explainGitDiff()
+    }
+
+    @objc private func explainGitLog() {
+        ChatWindowController.shared.show(focusComposer: {})
+        CodeCoordinator.shared.explainGitLog()
     }
 
     @objc private func openSettings() {
