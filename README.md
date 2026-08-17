@@ -68,15 +68,18 @@ macbuddy/
 ### Tests and regression
 
 ```bash
-# Full regression (all package tests + build + cold-start gate)
+# Full regression (all package tests + build + cold-start + hotkey gates)
 bash Scripts/perf/regression.sh
+
+# Individual benches
+bash Scripts/perf/launch_bench.sh    # cold start ≤ 1.2s
+bash Scripts/perf/hotkey_bench.sh    # hotkey show ≤ 100ms (automated via bench env)
 
 # Individual package
 swift test --package-path Packages/LLMClient
-
-# Cold start only (≤ 1.2s budget)
-bash Scripts/perf/launch_bench.sh
 ```
+
+Cold start is measured from `MacBuddyApp.init()` to composer `onAppear`. Hotkey bench uses `MACBUDDY_BENCH=1` (panel hidden at launch) and `MACBUDDY_BENCH_HOTKEY=1` (programmatic toggle) so CI does not require manual keypress.
 
 ### Performance budgets
 
@@ -87,6 +90,25 @@ bash Scripts/perf/launch_bench.sh
 | First token feel | ≤ 300ms |
 
 Heavy engines (LLM, Work, Code) load **on first use**, not at login.
+
+## CI
+
+GitHub Actions runs on `macos-14` for every push/PR to `main`:
+
+- All package `swift test`
+- App build + `.app` bundle
+- Launch bench + hotkey bench
+
+Workflow: [`.github/workflows/ci.yml`](.github/workflows/ci.yml)
+
+## Publishing
+
+This repo has no default remote. To push after creating a GitHub repo:
+
+```bash
+git remote add origin git@github.com:YOUR_USER/macbuddy.git
+git push -u origin main --tags
+```
 
 ## Plugins
 

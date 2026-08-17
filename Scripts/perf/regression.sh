@@ -21,5 +21,8 @@ bash Scripts/build_app.sh
 echo "-- launch bench (P0 gate)"
 bash Scripts/perf/launch_bench.sh
 
+echo "-- hotkey bench (P0 gate)"
+bash Scripts/perf/hotkey_bench.sh
+
 echo ""
 echo "ALL PASS: P4 regression suite"

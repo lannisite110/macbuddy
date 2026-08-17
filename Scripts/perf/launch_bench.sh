@@ -1,39 +1,51 @@
 #!/usr/bin/env bash
 set -euo pipefail
 source "$(dirname "$0")/common.sh"
+
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+READ_PY="$ROOT/Scripts/perf/read_telemetry.py"
+SUPPORT="$HOME/Library/Application Support/MacBuddy/Telemetry/perf.jsonl"
+
 require_app
 kill_macbuddy
-
-SUPPORT="$HOME/Library/Application Support/MacBuddy/Telemetry/perf.jsonl"
 rm -f "$SUPPORT"
 
 open -g "$MACBUDDY_APP"
-sleep 2
 
-DURATION=$(python3 - <<'PY'
-import json, os
-path = os.path.expanduser("~/Library/Application Support/MacBuddy/Telemetry/perf.jsonl")
-if not os.path.exists(path):
-    print(-1)
-    raise SystemExit
-last = None
-for line in open(path):
-    ev = json.loads(line)
-    if ev.get("kind") == "coldStart":
-        last = ev["durationMs"]
-print(last if last is not None else -1)
+DURATION=-1
+deadline=$(( $(date +%s) + 15 ))
+while (( $(date +%s) < deadline )); do
+  if DURATION=$(python3 "$READ_PY" coldStart 2>/dev/null); then
+    break
+  fi
+  sleep 0.2
+done
+
+if [[ "$DURATION" == "-1" ]] || ! python3 - <<PY
+import sys
+try:
+    v = float("$DURATION")
+except ValueError:
+    sys.exit(1)
+sys.exit(0 if v >= 0 else 1)
 PY
-)
-
-if (( $(echo "$DURATION < 0" | bc -l) )); then
-  echo "FAIL: no coldStart event recorded"
+then
+  echo "FAIL: no coldStart event recorded within 15s"
+  kill_macbuddy
   exit 1
 fi
 
-if (( $(echo "$DURATION > 1200" | bc -l) )); then
+if python3 - <<PY
+import sys
+v = float("$DURATION")
+sys.exit(0 if v <= 1200 else 1)
+PY
+then
+  echo "PASS: cold start ${DURATION}ms"
+else
   echo "FAIL: cold start ${DURATION}ms > 1200ms budget"
+  kill_macbuddy
   exit 1
 fi
 
-echo "PASS: cold start ${DURATION}ms"
 kill_macbuddy

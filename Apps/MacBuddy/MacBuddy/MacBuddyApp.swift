@@ -8,6 +8,10 @@ struct MacBuddyApp: App {
     @StateObject private var appState = AppState.shared
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
+    init() {
+        LaunchTiming.markProcessStart()
+    }
+
     var body: some Scene {
         Settings {
             SettingsView()
@@ -76,11 +80,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(withTitle: "Quit MacBuddy", action: #selector(quit), keyEquivalent: "q")
         statusItem?.menu = menu
 
-        ChatWindowController.shared.show(focusComposer: {})
+        if !BenchMode.isEnabled {
+            ChatWindowController.shared.show(focusComposer: {})
+        }
 
         hotkeyManager.register(HotkeyManager.defaultHotkey) {
-            ChatWindowController.shared.toggle(focusComposer: {})
-            ChatWindowController.shared.recordHotkeyVisible(telemetry: AppState.shared.telemetry)
+            ChatWindowController.shared.toggle(focusComposer: {}, fromHotkey: true)
+        }
+
+        if BenchMode.simulateHotkey {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                ChatWindowController.shared.toggle(focusComposer: {}, fromHotkey: true)
+            }
         }
     }
 

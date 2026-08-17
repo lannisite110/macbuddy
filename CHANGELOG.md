@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.1.1 — 2026-08-18
+
+### Tooling
+- Fix cold-start timing (measure from app init, not first `LaunchTiming` access)
+- Automate hotkey bench via `MACBUDDY_BENCH` / `MACBUDDY_BENCH_HOTKEY`
+- Add `read_telemetry.py`, include hotkey gate in regression suite
+- GitHub Actions CI on `macos-14`
+
 ## v0.1.0 — 2026-08-18
 
 First shippable MacBuddy release (P0 through P4).

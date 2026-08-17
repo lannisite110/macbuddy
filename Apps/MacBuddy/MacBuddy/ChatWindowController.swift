@@ -44,11 +44,16 @@ final class ChatWindowController {
         panel?.orderOut(nil)
     }
 
-    func toggle(focusComposer: @escaping () -> Void) {
+    func toggle(focusComposer: @escaping () -> Void, fromHotkey: Bool = false) {
         if panel?.isVisible == true {
             hide()
         } else {
             show(focusComposer: focusComposer)
+            if fromHotkey {
+                DispatchQueue.main.async { [weak self] in
+                    self?.recordHotkeyVisible(telemetry: AppState.shared.telemetry)
+                }
+            }
         }
     }
 
