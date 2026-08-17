@@ -1,7 +1,7 @@
 # MacBuddy Platform Design
 
 Date: 2026-08-17
-Status: approved
+Status: shipped (P0–P4 complete, v0.1.0)
 
 ## 1. Product
 
