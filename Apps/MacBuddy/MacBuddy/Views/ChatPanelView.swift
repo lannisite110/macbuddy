@@ -4,6 +4,7 @@ import UniformTypeIdentifiers
 struct ChatPanelView: View {
     @EnvironmentObject private var appState: AppState
     @StateObject private var chat = ChatViewModel()
+    @ObservedObject private var work = WorkCoordinator.shared
     @FocusState private var composerFocused: Bool
     @State private var draft = ""
     let onComposerReady: () -> Void
@@ -19,12 +20,23 @@ struct ChatPanelView: View {
 
             Divider()
 
-            if let banner = chat.errorBanner {
+            if let banner = chat.errorBanner ?? work.errorMessage {
                 Text(banner)
                     .font(.caption)
                     .foregroundStyle(.red)
                     .padding(.horizontal, 12)
                     .padding(.top, 6)
+            }
+
+            if work.isRunning {
+                HStack {
+                    ProgressView().controlSize(.small)
+                    Text("Running work action…")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.horizontal, 12)
+                .padding(.top, 4)
             }
 
             if !chat.attachedContext.isEmpty {
@@ -74,6 +86,14 @@ struct ChatPanelView: View {
                 .onDrop(of: [.fileURL, .plainText], isTargeted: nil) { providers in
                     handleDrop(providers)
                 }
+        }
+        .sheet(item: $work.activeResult) { result in
+            WorkResultView(
+                presentation: result,
+                onCopy: { work.copyResult(result.resultText) },
+                onReplace: { work.replaceSelection(with: result.resultText) },
+                onDismiss: { work.activeResult = nil }
+            )
         }
         .onAppear {
             LaunchTiming.markComposerReady(telemetry: appState.telemetry)

@@ -12,11 +12,12 @@ let package = Package(
         .package(path: "../../Packages/Telemetry"),
         .package(path: "../../Packages/SettingsStore"),
         .package(path: "../../Packages/LLMClient"),
+        .package(path: "../../Packages/WorkSkills"),
     ],
     targets: [
         .executableTarget(
             name: "MacBuddy",
-            dependencies: ["SessionStore", "Telemetry", "SettingsStore", "LLMClient"],
+            dependencies: ["SessionStore", "Telemetry", "SettingsStore", "LLMClient", "WorkSkills"],
             path: "MacBuddy",
             exclude: ["Info.plist"]
         ),
