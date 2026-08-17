@@ -4,6 +4,7 @@ import LLMClient
 public actor CodeEngine {
     private var workspaceURL: URL?
     private var entries: [WorkspaceEntry] = []
+    private var indexStats: IncrementalIndexStats?
     private var llmClient: LLMClient?
 
     public init() {}
@@ -11,15 +12,23 @@ public actor CodeEngine {
     public var isOpen: Bool { workspaceURL != nil }
     public var workspacePath: String? { workspaceURL?.path }
     public var filePaths: [String] { entries.map(\.relativePath) }
+    public var lastIndexStats: IncrementalIndexStats? { indexStats }
 
-    public func openWorkspace(_ url: URL) async throws {
+    public func openWorkspace(_ url: URL, storageDirectory: URL, incrementalIndexEnabled: Bool) async throws {
         workspaceURL = url
-        entries = try WorkspaceScanner.scan(workspace: url)
+        let result = try IncrementalIndexStore.scan(
+            workspace: url,
+            storageDirectory: storageDirectory,
+            enabled: incrementalIndexEnabled
+        )
+        entries = result.0
+        indexStats = result.1
     }
 
     public func closeWorkspace() {
         workspaceURL = nil
         entries = []
+        indexStats = nil
     }
 
     public func resolveMentions(in text: String) -> [String] {

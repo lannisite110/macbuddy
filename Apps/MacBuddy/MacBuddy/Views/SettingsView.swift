@@ -13,7 +13,7 @@ struct SettingsView: View {
     var body: some View {
         TabView {
             Form {
-                Text("MacBuddy P1")
+                Text("MacBuddy P4")
                 TextField("Base URL", text: $baseURL)
                     .textFieldStyle(.roundedBorder)
                 TextField("Model", text: $model)
@@ -33,11 +33,20 @@ struct SettingsView: View {
             .padding()
             .tabItem { Text("General") }
 
+            FeaturesSettingsPane()
+                .tabItem { Text("Features") }
+
+            WorkflowsSettingsPane()
+                .tabItem { Text("Workflows") }
+
+            PluginsSettingsPane()
+                .tabItem { Text("Plugins") }
+
             PerformancePaneView()
                 .environmentObject(appState)
                 .tabItem { Text("Performance") }
         }
-        .frame(width: 520, height: 360)
+        .frame(width: 560, height: 420)
         .onAppear { load() }
     }
 

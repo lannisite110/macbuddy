@@ -15,6 +15,7 @@ final class CodeCoordinator: ObservableObject {
     @Published var activePreview: PatchPreview?
     @Published var errorMessage: String?
     @Published var gitOutput: String?
+    @Published var indexStatus: String?
 
     private var engine: CodeEngine?
     private var idleTask: Task<Void, Never>?
@@ -38,10 +39,24 @@ final class CodeCoordinator: ObservableObject {
         let engine = engine ?? CodeEngine()
         self.engine = engine
         do {
-            try await engine.openWorkspace(url)
+            let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+                .appendingPathComponent("MacBuddy", isDirectory: true)
+            let features = settingsStore.loadFeatureSettings()
+            try await engine.openWorkspace(
+                url,
+                storageDirectory: support.appendingPathComponent("Index", isDirectory: true),
+                incrementalIndexEnabled: features.incrementalIndexEnabled
+            )
             isWorkspaceOpen = true
             workspaceName = url.lastPathComponent
             settingsStore.saveLastWorkspacePath(url.path)
+            if let stats = await engine.lastIndexStats {
+                if stats.enabled {
+                    indexStatus = "Index: \(stats.unchanged) unchanged, \(stats.updated) updated"
+                } else {
+                    indexStatus = nil
+                }
+            }
             scheduleIdleClose()
         } catch {
             errorMessage = error.localizedDescription
@@ -62,6 +77,10 @@ final class CodeCoordinator: ObservableObject {
     func handleCodeRequest(_ prompt: String) {
         guard isWorkspaceOpen else {
             errorMessage = "Open a workspace folder first."
+            return
+        }
+        guard settingsStore.consumeQuota() else {
+            errorMessage = "Monthly quota exceeded."
             return
         }
         idleTask?.cancel()

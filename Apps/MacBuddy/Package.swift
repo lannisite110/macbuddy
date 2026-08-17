@@ -14,11 +14,16 @@ let package = Package(
         .package(path: "../../Packages/LLMClient"),
         .package(path: "../../Packages/WorkSkills"),
         .package(path: "../../Packages/CodeEngine"),
+        .package(path: "../../Packages/PluginHost"),
+        .package(path: "../../Packages/WorkflowTemplates"),
     ],
     targets: [
         .executableTarget(
             name: "MacBuddy",
-            dependencies: ["SessionStore", "Telemetry", "SettingsStore", "LLMClient", "WorkSkills", "CodeEngine"],
+            dependencies: [
+                "SessionStore", "Telemetry", "SettingsStore", "LLMClient",
+                "WorkSkills", "CodeEngine", "PluginHost", "WorkflowTemplates",
+            ],
             path: "MacBuddy",
             exclude: ["Info.plist"]
         ),

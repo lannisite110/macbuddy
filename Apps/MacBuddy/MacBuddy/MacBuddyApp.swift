@@ -1,6 +1,7 @@
 import AppKit
 import SwiftUI
 import WorkSkills
+import WorkflowTemplates
 
 @main
 struct MacBuddyApp: App {
@@ -54,6 +55,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let codeRoot = NSMenuItem(title: "Code", action: nil, keyEquivalent: "")
         menu.setSubmenu(codeMenu, for: codeRoot)
         menu.addItem(codeRoot)
+
+        let workflowMenu = NSMenu()
+        for template in WorkflowCatalog.builtIn {
+            let item = NSMenuItem(title: template.name, action: #selector(runWorkflow(_:)), keyEquivalent: "")
+            item.representedObject = template.id
+            item.target = self
+            workflowMenu.addItem(item)
+        }
+        let workflowRoot = NSMenuItem(title: "Workflows", action: nil, keyEquivalent: "")
+        menu.setSubmenu(workflowMenu, for: workflowRoot)
+        menu.addItem(workflowRoot)
 
         menu.addItem(
             withTitle: "Settings…",
@@ -113,6 +125,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func explainGitLog() {
         ChatWindowController.shared.show(focusComposer: {})
         CodeCoordinator.shared.explainGitLog()
+    }
+
+    @objc private func runWorkflow(_ sender: NSMenuItem) {
+        guard let id = sender.representedObject as? String,
+              let template = WorkflowCatalog.template(id: id) else { return }
+        ChatWindowController.shared.show(focusComposer: {})
+        WorkflowCoordinator.shared.run(template)
     }
 
     @objc private func openSettings() {

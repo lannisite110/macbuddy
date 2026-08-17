@@ -11,12 +11,29 @@ public struct ModelSettings: Codable, Equatable, Sendable {
     }
 }
 
+public struct FeatureSettings: Codable, Equatable, Sendable {
+    public var incrementalIndexEnabled: Bool
+    public var accountEmail: String
+    public var monthlyQuotaRemaining: Int
+
+    public init(
+        incrementalIndexEnabled: Bool = false,
+        accountEmail: String = "",
+        monthlyQuotaRemaining: Int = 1000
+    ) {
+        self.incrementalIndexEnabled = incrementalIndexEnabled
+        self.accountEmail = accountEmail
+        self.monthlyQuotaRemaining = monthlyQuotaRemaining
+    }
+}
+
 public enum SettingsStoreError: Error {
     case keychainFailed
 }
 
 public struct SettingsStore: Sendable {
     private static let prefsKey = "com.macbuddy.modelSettings"
+    private static let featureKey = "com.macbuddy.featureSettings"
     private static let keychainService = "com.macbuddy.app"
     private static let keychainAccount = "apiKey"
 
@@ -57,6 +74,29 @@ public struct SettingsStore: Sendable {
 
     public func loadLastWorkspacePath() -> String? {
         UserDefaults.standard.string(forKey: "com.macbuddy.lastWorkspacePath")
+    }
+
+    public func loadFeatureSettings() -> FeatureSettings {
+        guard
+            let data = UserDefaults.standard.data(forKey: Self.featureKey),
+            let settings = try? JSONDecoder().decode(FeatureSettings.self, from: data)
+        else {
+            return FeatureSettings()
+        }
+        return settings
+    }
+
+    public func saveFeatureSettings(_ settings: FeatureSettings) {
+        guard let data = try? JSONEncoder().encode(settings) else { return }
+        UserDefaults.standard.set(data, forKey: Self.featureKey)
+    }
+
+    public func consumeQuota(amount: Int = 1) -> Bool {
+        var features = loadFeatureSettings()
+        guard features.monthlyQuotaRemaining >= amount else { return false }
+        features.monthlyQuotaRemaining -= amount
+        saveFeatureSettings(features)
+        return true
     }
 }
 

@@ -55,6 +55,11 @@ final class ChatViewModel: ObservableObject {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, !isGenerating else { return }
 
+        if !settingsStore.consumeQuota() {
+            errorBanner = "Monthly quota exceeded."
+            return
+        }
+
         if currentSessionId == nil {
             startNewSession(appState: appState)
         }

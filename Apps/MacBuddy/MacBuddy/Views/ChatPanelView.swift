@@ -17,6 +17,11 @@ struct ChatPanelView: View {
                     Text("📁 \(name)")
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                    if let indexStatus = code.indexStatus {
+                        Text(indexStatus)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
                 }
                 Spacer()
                 if code.isWorkspaceOpen {
@@ -132,6 +137,11 @@ struct ChatPanelView: View {
             composerFocused = true
             if chat.currentSessionId == nil, let first = appState.sessions.first {
                 chat.selectSession(first.id, appState: appState)
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .workflowChatPrompt)) { notification in
+            if let prompt = notification.object as? String {
+                chat.send(text: prompt, appState: appState)
             }
         }
     }
