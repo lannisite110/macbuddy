@@ -1,5 +1,6 @@
 import Foundation
 import LLMClient
+import LLMSidecarClient
 import SessionStore
 import SettingsStore
 import Telemetry
@@ -27,7 +28,7 @@ final class ChatViewModel: ObservableObject {
     @Published var attachedContext: String = ""
     @Published var errorBanner: String?
 
-    private var llmClient: LLMClient?
+    private var llmSidecar: LLMSidecarClient?
     private var streamTask: Task<Void, Never>?
     private(set) var currentSessionId: UUID?
     private var sendStartedAt: CFAbsoluteTime?
@@ -93,7 +94,7 @@ final class ChatViewModel: ObservableObject {
 
     func cancel(appState: AppState) {
         streamTask?.cancel()
-        Task { await llmClient?.cancel() }
+        Task { await llmSidecar?.cancel() }
         if let index = rows.lastIndex(where: { $0.isStreaming }) {
             rows[index].isStreaming = false
             rows[index].status = .cancelled
@@ -127,23 +128,24 @@ final class ChatViewModel: ObservableObject {
         return "Context:\n\(attachedContext)\n\n\(prompt)"
     }
 
-    private func ensureLLMClient() async throws -> LLMClient {
-        if let llmClient { return llmClient }
-        let settings = settingsStore.loadModelSettings()
-        let config = LLMConfiguration(baseURL: settings.baseURL, model: settings.model)
-        let client = try await LLMClient(configuration: config, apiKey: settingsStore.loadAPIKey())
-        llmClient = client
+    private func ensureLLMSidecar() async -> LLMSidecarClient {
+        if let llmSidecar { return llmSidecar }
+        let client = LLMSidecarClient()
+        llmSidecar = client
         return client
     }
 
     private func runStream(sessionId: UUID, assistantId: UUID, appState: AppState) async {
+        let settings = settingsStore.loadModelSettings()
+        let config = LLMConfiguration(baseURL: settings.baseURL, model: settings.model)
+        let apiKey = settingsStore.loadAPIKey()
         let messages = rows
             .filter { !$0.isStreaming && $0.body != "Thinking…" && $0.status != .cancelled }
             .map { ChatMessage(role: $0.role, content: $0.body) }
 
         do {
-            let client = try await ensureLLMClient()
-            let stream = await client.streamCompletion(messages: messages)
+            let sidecar = await ensureLLMSidecar()
+            let stream = await sidecar.streamCompletion(messages: messages, configuration: config, apiKey: apiKey)
             var buffer = ""
             var displayed = ""
             var lastFlush = CFAbsoluteTimeGetCurrent()
@@ -175,6 +177,12 @@ final class ChatViewModel: ObservableObject {
             isGenerating = false
         } catch LLMClientError.cancelled {
             cancel(appState: appState)
+        } catch SidecarLaunchError.helperMissing {
+            let message = "LLM sidecar missing. Rebuild with bash Scripts/build_app.sh"
+            updateAssistant(id: assistantId, body: message, streaming: false, status: .error)
+            try? appState.sessionStore.updateMessage(id: assistantId, body: message, status: .error)
+            errorBanner = message
+            isGenerating = false
         } catch {
             let message: String
             if case LLMClientError.httpStatus(let code, _) = error {

@@ -54,7 +54,11 @@ macbuddy/
     SessionStore/          SQLite sessions (metadata-only at launch)
     Telemetry/             Local JSONL perf events
     SettingsStore/         UserDefaults + Keychain
-    LLMClient/             OpenAI-compatible SSE streaming
+  Sidecars/LLMSidecar/         LLM sidecar process (MacBuddyLLM)
+  Packages/
+    SidecarIPC/                Unix-socket JSON protocol
+    LLMSidecarClient/          Spawn + talk to LLM sidecar
+    LLMClient/                 OpenAI-compatible SSE (runs inside sidecar)
     WorkSkills/            Work actions + Accessibility selection
     CodeEngine/            Workspace scan, patches, git, index
     PluginHost/            Signed plugin manifests (SHA256)
@@ -101,13 +105,12 @@ GitHub Actions runs on `macos-14` for every push/PR to `main`:
 
 Workflow: [`.github/workflows/ci.yml`](.github/workflows/ci.yml)
 
-## Publishing
-
-This repo has no default remote. To push after creating a GitHub repo:
+### Publishing (private GitHub)
 
 ```bash
-git remote add origin git@github.com:YOUR_USER/macbuddy.git
-git push -u origin main --tags
+brew install gh
+gh auth login -h github.com -p ssh -w
+bash Scripts/setup_github_remote.sh
 ```
 
 ## Plugins

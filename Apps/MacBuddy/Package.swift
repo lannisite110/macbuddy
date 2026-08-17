@@ -12,6 +12,7 @@ let package = Package(
         .package(path: "../../Packages/Telemetry"),
         .package(path: "../../Packages/SettingsStore"),
         .package(path: "../../Packages/LLMClient"),
+        .package(path: "../../Packages/LLMSidecarClient"),
         .package(path: "../../Packages/WorkSkills"),
         .package(path: "../../Packages/CodeEngine"),
         .package(path: "../../Packages/PluginHost"),
@@ -21,7 +22,7 @@ let package = Package(
         .executableTarget(
             name: "MacBuddy",
             dependencies: [
-                "SessionStore", "Telemetry", "SettingsStore", "LLMClient",
+                "SessionStore", "Telemetry", "SettingsStore", "LLMClient", "LLMSidecarClient",
                 "WorkSkills", "CodeEngine", "PluginHost", "WorkflowTemplates",
             ],
             path: "MacBuddy",

@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.2.0 — 2026-08-18
+
+### XPC / sidecar (LLM)
+- `MacBuddyLLM` helper in `Contents/Helpers/` (separate process)
+- `SidecarIPC` Unix-socket JSON protocol
+- Chat streaming routed through `LLMSidecarClient` (shell no longer runs HTTP on chat path)
+- `Scripts/setup_github_remote.sh` for private GitHub push
+
 ## v0.1.1 — 2026-08-18
 
 ### Tooling

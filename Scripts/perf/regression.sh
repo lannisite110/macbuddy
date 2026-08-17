@@ -6,7 +6,7 @@ cd "$ROOT"
 
 echo "== MacBuddy P4 regression suite =="
 
-PACKAGES=(SessionStore Telemetry SettingsStore LLMClient WorkSkills CodeEngine PluginHost WorkflowTemplates)
+PACKAGES=(SessionStore Telemetry SettingsStore LLMClient SidecarIPC WorkSkills CodeEngine PluginHost WorkflowTemplates)
 for pkg in "${PACKAGES[@]}"; do
   echo "-- swift test: $pkg"
   swift test --package-path "Packages/$pkg"
