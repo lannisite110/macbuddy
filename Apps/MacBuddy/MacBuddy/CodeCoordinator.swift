@@ -1,9 +1,11 @@
 import AppKit
 import CodeEngine
+import CodeSidecarClient
 import Foundation
 import LLMClient
 import SessionStore
 import SettingsStore
+import SidecarIPC
 
 @MainActor
 final class CodeCoordinator: ObservableObject {
@@ -16,10 +18,20 @@ final class CodeCoordinator: ObservableObject {
     @Published var errorMessage: String?
     @Published var gitOutput: String?
     @Published var indexStatus: String?
+    @Published var sidecarIssue: SidecarIssue?
 
-    private var engine: CodeEngine?
+    private var sidecar: CodeSidecarClient?
     private var idleTask: Task<Void, Never>?
+    private var lastRetry: CodeRetry?
     private let settingsStore = SettingsStore()
+
+    private enum CodeRetry {
+        case open(URL)
+        case patch(String)
+        case apply(PatchPreview)
+        case gitDiff
+        case gitLog
+    }
 
     private init() {}
 
@@ -36,42 +48,45 @@ final class CodeCoordinator: ObservableObject {
 
     func openWorkspace(_ url: URL) async {
         errorMessage = nil
-        let engine = engine ?? CodeEngine()
-        self.engine = engine
+        sidecarIssue = nil
+        lastRetry = .open(url)
+        let sidecar = sidecar ?? CodeSidecarClient()
+        self.sidecar = sidecar
         do {
             let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
                 .appendingPathComponent("MacBuddy", isDirectory: true)
             let features = settingsStore.loadFeatureSettings()
-            try await engine.openWorkspace(
+            let result = try await sidecar.openWorkspace(
                 url,
                 storageDirectory: support.appendingPathComponent("Index", isDirectory: true),
                 incrementalIndexEnabled: features.incrementalIndexEnabled
             )
             isWorkspaceOpen = true
-            workspaceName = url.lastPathComponent
+            workspaceName = result.workspaceName
             settingsStore.saveLastWorkspacePath(url.path)
-            if let stats = await engine.lastIndexStats {
-                if stats.enabled {
-                    indexStatus = "Index: \(stats.unchanged) unchanged, \(stats.updated) updated"
-                } else {
-                    indexStatus = nil
-                }
+            if result.stats.enabled {
+                indexStatus = "Index: \(result.stats.unchanged) unchanged, \(result.stats.updated) updated"
+            } else {
+                indexStatus = nil
             }
             scheduleIdleClose()
         } catch {
-            errorMessage = error.localizedDescription
+            recordFailure(error)
         }
     }
 
     func closeWorkspace() {
         idleTask?.cancel()
         Task {
-            await engine?.closeWorkspace()
+            await sidecar?.closeWorkspace()
         }
-        engine = nil
+        sidecar = nil
         isWorkspaceOpen = false
         workspaceName = nil
         activePreview = nil
+        indexStatus = nil
+        lastRetry = nil
+        sidecarIssue = nil
     }
 
     func handleCodeRequest(_ prompt: String) {
@@ -87,13 +102,15 @@ final class CodeCoordinator: ObservableObject {
         scheduleIdleClose()
         isBusy = true
         errorMessage = nil
+        sidecarIssue = nil
+        lastRetry = .patch(prompt)
         Task {
             defer { isBusy = false }
-            guard let engine else { return }
+            guard let sidecar else { return }
             do {
                 let settings = settingsStore.loadModelSettings()
                 let config = LLMConfiguration(baseURL: settings.baseURL, model: settings.model)
-                let preview = try await engine.proposePatch(
+                let preview = try await sidecar.proposePatch(
                     prompt: prompt,
                     configuration: config,
                     apiKey: settingsStore.loadAPIKey()
@@ -101,41 +118,77 @@ final class CodeCoordinator: ObservableObject {
                 activePreview = preview
                 persistCodeSession(prompt: prompt, preview: preview)
             } catch {
-                errorMessage = friendly(error)
+                recordFailure(error)
             }
         }
     }
 
     func applyPreview(_ preview: PatchPreview) {
+        lastRetry = .apply(preview)
+        sidecarIssue = nil
         Task {
             do {
-                try await engine?.apply(preview: preview)
+                try await sidecar?.apply(preview: preview)
                 activePreview = nil
                 scheduleIdleClose()
             } catch {
-                errorMessage = friendly(error)
+                recordFailure(error)
             }
         }
     }
 
     func explainGitDiff() {
+        lastRetry = .gitDiff
         runGitAction { try await $0.explainGitDiff() }
     }
 
     func explainGitLog() {
+        lastRetry = .gitLog
         runGitAction { try await $0.explainGitLog() }
     }
 
-    private func runGitAction(_ action: @escaping (CodeEngine) async throws -> String) {
-        guard isWorkspaceOpen, let engine else { return }
+    private func runGitAction(_ action: @escaping (CodeSidecarClient) async throws -> String) {
+        guard isWorkspaceOpen, let sidecar else { return }
         isBusy = true
         Task {
             defer { isBusy = false }
             do {
-                gitOutput = try await action(engine)
+                gitOutput = try await action(sidecar)
             } catch {
-                errorMessage = friendly(error)
+                recordFailure(error)
             }
+        }
+    }
+
+    func retrySidecar() {
+        guard let lastRetry else { return }
+        sidecarIssue = nil
+        errorMessage = nil
+        Task {
+            await sidecar?.reset()
+            switch lastRetry {
+            case let .open(url):
+                await openWorkspace(url)
+            case let .patch(prompt):
+                handleCodeRequest(prompt)
+            case let .apply(preview):
+                applyPreview(preview)
+            case .gitDiff:
+                explainGitDiff()
+            case .gitLog:
+                explainGitLog()
+            }
+        }
+    }
+
+    private func recordFailure(_ error: Error) {
+        errorMessage = SidecarRecovery.message(sidecarName: "Code", error: error)
+        if SidecarRecovery.isRecoverable(error) {
+            sidecarIssue = SidecarIssue(sidecarName: "Code", message: errorMessage ?? "", canRetry: true)
+        } else if (error as? SidecarLaunchError) == .helperMissing {
+            sidecarIssue = SidecarIssue(sidecarName: "Code", message: errorMessage ?? "", canRetry: false)
+        } else {
+            sidecarIssue = nil
         }
     }
 
@@ -158,12 +211,5 @@ final class CodeCoordinator: ObservableObject {
         _ = try? AppState.shared.sessionStore.insertMessage(sessionId: sessionId, role: "assistant", body: diffText)
         try? AppState.shared.sessionStore.touchSession(id: sessionId, title: session.title)
         AppState.shared.loadSessionMetadata()
-    }
-
-    private func friendly(_ error: Error) -> String {
-        if case LLMClientError.httpStatus(let code, _) = error {
-            return code == 401 ? "Invalid API key." : "Request failed (\(code))."
-        }
-        return String(describing: error)
     }
 }

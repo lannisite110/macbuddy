@@ -38,36 +38,14 @@ public actor LLMSidecarClient {
                 do {
                     self.activeRequestId = requestId
                     defer { Task { await self.clearActiveRequest() } }
-                    let conn = try await self.ensureConnection()
-                    try await conn.send(.complete(
+                    try await self.streamOnce(
                         requestId: requestId,
+                        messages: messages,
                         configuration: configuration,
                         apiKey: apiKey,
-                        messages: messages
-                    ))
-                    while true {
-                        guard let event = try await conn.readNextEvent(waitSeconds: 120) else {
-                            continuation.finish(throwing: SidecarIPCError.notConnected)
-                            return
-                        }
-                        switch event {
-                        case .ready, .pong:
-                            continue
-                        case let .token(id, text) where id == requestId:
-                            continuation.yield(text)
-                        case .done(let id) where id == requestId:
-                            continuation.finish()
-                            return
-                        case let .error(id?, message) where id == requestId:
-                            continuation.finish(throwing: LLMClientError.httpStatus(502, message))
-                            return
-                        case .error(nil, let message):
-                            continuation.finish(throwing: LLMClientError.httpStatus(502, message))
-                            return
-                        default:
-                            continue
-                        }
-                    }
+                        continuation: continuation,
+                        allowRetry: true
+                    )
                 } catch {
                     continuation.finish(throwing: error)
                 }
@@ -75,8 +53,68 @@ public actor LLMSidecarClient {
         }
     }
 
+    private func streamOnce(
+        requestId: String,
+        messages: [ChatMessage],
+        configuration: LLMConfiguration,
+        apiKey: String?,
+        continuation: AsyncThrowingStream<String, Error>.Continuation,
+        allowRetry: Bool
+    ) async throws {
+        var yielded = false
+        do {
+            let conn = try await ensureConnection()
+            try await conn.send(.complete(
+                requestId: requestId,
+                configuration: configuration,
+                apiKey: apiKey,
+                messages: messages
+            ))
+            while true {
+                guard let event = try await conn.readNextEvent(waitSeconds: 120) else {
+                    throw SidecarIPCError.notConnected
+                }
+                switch event {
+                case .ready, .pong:
+                    continue
+                case let .token(id, text) where id == requestId:
+                    yielded = true
+                    continuation.yield(text)
+                case .done(let id) where id == requestId:
+                    continuation.finish()
+                    return
+                case let .error(id?, message) where id == requestId:
+                    continuation.finish(throwing: LLMClientError.httpStatus(502, message))
+                    return
+                case .error(nil, let message):
+                    continuation.finish(throwing: LLMClientError.httpStatus(502, message))
+                    return
+                default:
+                    continue
+                }
+            }
+        } catch {
+            if allowRetry, !yielded, SidecarRecovery.isRecoverable(error) {
+                await reset()
+                try await streamOnce(
+                    requestId: requestId,
+                    messages: messages,
+                    configuration: configuration,
+                    apiKey: apiKey,
+                    continuation: continuation,
+                    allowRetry: false
+                )
+                return
+            }
+            throw error
+        }
+    }
+
     private func ensureConnection() async throws -> SidecarConnection {
-        if let connection { return connection }
+        if let connection, await process.isRunning {
+            return connection
+        }
+        connection = nil
         let path = try await process.ensureRunning()
         let deadline = Date().addingTimeInterval(5)
         var lastError: Error = SidecarLaunchError.notReady
@@ -93,6 +131,12 @@ public actor LLMSidecarClient {
             }
         }
         throw lastError
+    }
+
+    public func reset() async {
+        connection = nil
+        activeRequestId = nil
+        await process.terminate()
     }
 
     private func clearActiveRequest() {

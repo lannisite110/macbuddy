@@ -37,4 +37,18 @@ final class CodeEngineTests: XCTestCase {
     func testIgnoreRulesSkipsNodeModules() {
         XCTAssertTrue(IgnoreRules.shouldIgnore(relativePath: "foo/node_modules/bar", workspacePatterns: []))
     }
+
+    func testPatchPreviewJSONRoundTrip() throws {
+        let preview = PatchPreview(
+            summary: "edit",
+            changes: [
+                PatchFileChange(relativePath: "a.swift", oldContent: "old", newContent: "new", unifiedDiff: "-old\n+new"),
+            ]
+        )
+        let data = try JSONEncoder().encode(preview)
+        let decoded = try JSONDecoder().decode(PatchPreview.self, from: data)
+        XCTAssertEqual(decoded.summary, "edit")
+        XCTAssertEqual(decoded.changes.first?.relativePath, "a.swift")
+        XCTAssertEqual(decoded.changes.first?.newContent, "new")
+    }
 }

@@ -55,12 +55,16 @@ macbuddy/
     Telemetry/             Local JSONL perf events
     SettingsStore/         UserDefaults + Keychain
   Sidecars/LLMSidecar/         LLM sidecar process (MacBuddyLLM)
+  Sidecars/WorkSidecar/        Work sidecar process (MacBuddyWork)
+  Sidecars/CodeSidecar/        Code sidecar process (MacBuddyCode)
   Packages/
     SidecarIPC/                Unix-socket JSON protocol
     LLMSidecarClient/          Spawn + talk to LLM sidecar
-    LLMClient/                 OpenAI-compatible SSE (runs inside sidecar)
-    WorkSkills/            Work actions + Accessibility selection
-    CodeEngine/            Workspace scan, patches, git, index
+    WorkSidecarClient/         Spawn + talk to Work sidecar
+    CodeSidecarClient/         Spawn + talk to Code sidecar
+    LLMClient/                 OpenAI-compatible SSE (runs inside sidecars)
+    WorkSkills/            Work prompts + Accessibility (selection stays in the app)
+    CodeEngine/            Workspace scan, patches, git, index (runs inside Code sidecar)
     PluginHost/            Signed plugin manifests (SHA256)
     WorkflowTemplates/     Built-in workflow definitions
   Scripts/

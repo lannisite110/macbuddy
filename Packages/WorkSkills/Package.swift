@@ -12,6 +12,6 @@ let package = Package(
     ],
     targets: [
         .target(name: "WorkSkills", dependencies: ["LLMClient"]),
-        .testTarget(name: "WorkSkillsTests", dependencies: ["WorkSkills"]),
+        .testTarget(name: "WorkSkillsTests", dependencies: ["WorkSkills", "LLMClient"]),
     ]
 )

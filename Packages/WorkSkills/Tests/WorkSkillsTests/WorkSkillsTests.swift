@@ -1,4 +1,5 @@
 import XCTest
+import LLMClient
 @testable import WorkSkills
 
 final class WorkSkillsTests: XCTestCase {
@@ -20,5 +21,22 @@ final class WorkSkillsTests: XCTestCase {
         try "sample content".write(to: url, atomically: true, encoding: .utf8)
         defer { try? FileManager.default.removeItem(at: url) }
         XCTAssertEqual(try FileTextReader.readText(from: url), "sample content")
+    }
+
+    func testEmptyInputThrowsBeforeLLM() async {
+        let engine = WorkEngine()
+        do {
+            _ = try await engine.run(
+                action: .summarize,
+                input: "   ",
+                configuration: LLMConfiguration(baseURL: "http://127.0.0.1:11434/v1", model: "llama"),
+                apiKey: nil
+            )
+            XCTFail("expected emptyInput")
+        } catch let error as WorkSkillsError {
+            XCTAssertEqual(error, .emptyInput)
+        } catch {
+            XCTFail("unexpected \(error)")
+        }
     }
 }

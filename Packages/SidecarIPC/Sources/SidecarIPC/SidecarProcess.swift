@@ -7,31 +7,61 @@ public enum SidecarLaunchError: Error, Equatable {
 }
 
 public struct SidecarPaths {
-    public static func llmSocketURL() -> URL {
+    public static func socketsDirectory() -> URL {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
             .appendingPathComponent("MacBuddy/Sockets", isDirectory: true)
         try? FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
-        return base.appendingPathComponent("llm.sock")
+        return base
+    }
+
+    public static func llmSocketURL() -> URL {
+        socketsDirectory().appendingPathComponent("llm.sock")
+    }
+
+    public static func workSocketURL() -> URL {
+        socketsDirectory().appendingPathComponent("work.sock")
+    }
+
+    public static func codeSocketURL() -> URL {
+        socketsDirectory().appendingPathComponent("code.sock")
     }
 
     public static func bundledHelper(named name: String) -> URL? {
-        if let override = ProcessInfo.processInfo.environment["MACBUDDY_LLM_HELPER"],
-           FileManager.default.isExecutableFile(atPath: override) {
-            return URL(fileURLWithPath: override)
+        let envKeys: [String]
+        switch name {
+        case "MacBuddyLLM":
+            envKeys = ["MACBUDDY_LLM_HELPER"]
+        case "MacBuddyWork":
+            envKeys = ["MACBUDDY_WORK_HELPER"]
+        case "MacBuddyCode":
+            envKeys = ["MACBUDDY_CODE_HELPER"]
+        default:
+            envKeys = ["MACBUDDY_HELPER"]
         }
+        for key in envKeys {
+            if let override = ProcessInfo.processInfo.environment[key],
+               FileManager.default.isExecutableFile(atPath: override) {
+                return URL(fileURLWithPath: override)
+            }
+        }
+
         let bundle = Bundle.main.bundleURL
         let helper = bundle.appendingPathComponent("Contents/Helpers/\(name)")
         if FileManager.default.isExecutableFile(atPath: helper.path) {
             return helper
         }
-        let devRoots = [
+
+        let sidecarDirs = ["LLMSidecar", "WorkSidecar", "CodeSidecar"]
+        let roots = [
             bundle.deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent(),
             URL(fileURLWithPath: FileManager.default.currentDirectoryPath),
         ]
-        for root in devRoots {
-            let dev = root.appendingPathComponent("Sidecars/LLMSidecar/.build/debug/\(name)")
-            if FileManager.default.isExecutableFile(atPath: dev.path) {
-                return dev
+        for root in roots {
+            for sidecarDir in sidecarDirs {
+                let dev = root.appendingPathComponent("Sidecars/\(sidecarDir)/.build/debug/\(name)")
+                if FileManager.default.isExecutableFile(atPath: dev.path) {
+                    return dev
+                }
             }
         }
         return nil

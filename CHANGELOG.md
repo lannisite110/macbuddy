@@ -1,5 +1,20 @@
 # Changelog
 
+## v0.2.2 — 2026-08-18
+
+### XPC / sidecar (Code)
+- `MacBuddyCode` helper in `Contents/Helpers/` (separate process)
+- Open workspace, patch preview/apply, and git explain run in the Code sidecar
+- App shell still owns folder picker, diff UI, and 30s idle close
+- Sidecar crash/disconnect auto-retries once, then shows a Retry banner
+
+## v0.2.1 — 2026-08-18
+
+### XPC / sidecar (Work)
+- `MacBuddyWork` helper in `Contents/Helpers/` (separate process)
+- Summarize / rewrite / meeting notes run in the Work sidecar
+- App shell still owns Accessibility, file pickers, Copy/Replace
+
 ## v0.2.0 — 2026-08-18
 
 ### XPC / sidecar (LLM)

@@ -14,7 +14,9 @@ let package = Package(
         .package(path: "../../Packages/LLMClient"),
         .package(path: "../../Packages/LLMSidecarClient"),
         .package(path: "../../Packages/WorkSkills"),
+        .package(path: "../../Packages/WorkSidecarClient"),
         .package(path: "../../Packages/CodeEngine"),
+        .package(path: "../../Packages/CodeSidecarClient"),
         .package(path: "../../Packages/PluginHost"),
         .package(path: "../../Packages/WorkflowTemplates"),
     ],
@@ -23,7 +25,7 @@ let package = Package(
             name: "MacBuddy",
             dependencies: [
                 "SessionStore", "Telemetry", "SettingsStore", "LLMClient", "LLMSidecarClient",
-                "WorkSkills", "CodeEngine", "PluginHost", "WorkflowTemplates",
+                "WorkSkills", "WorkSidecarClient", "CodeEngine", "CodeSidecarClient", "PluginHost", "WorkflowTemplates",
             ],
             path: "MacBuddy",
             exclude: ["Info.plist"]

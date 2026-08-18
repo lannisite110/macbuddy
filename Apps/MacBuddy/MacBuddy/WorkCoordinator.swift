@@ -1,7 +1,10 @@
+import AppKit
 import Foundation
 import LLMClient
 import SessionStore
 import SettingsStore
+import SidecarIPC
+import WorkSidecarClient
 import WorkSkills
 
 struct WorkResultPresentation: Identifiable {
@@ -18,15 +21,18 @@ final class WorkCoordinator: ObservableObject {
     @Published var isRunning = false
     @Published var activeResult: WorkResultPresentation?
     @Published var errorMessage: String?
+    @Published var sidecarIssue: SidecarIssue?
 
-    private var engine: WorkEngine?
+    private var sidecar: WorkSidecarClient?
     private var task: Task<Void, Never>?
+    private var lastRetry: (action: WorkAction, input: String)?
     private let settingsStore = SettingsStore()
 
     private init() {}
 
     func runSelectionAction(_ action: WorkAction) {
         task?.cancel()
+        Task { await sidecar?.cancel() }
         task = Task {
             do {
                 if !PermissionBroker.isAccessibilityTrusted() {
@@ -51,14 +57,16 @@ final class WorkCoordinator: ObservableObject {
     func perform(action: WorkAction, input: String) async {
         isRunning = true
         errorMessage = nil
+        sidecarIssue = nil
+        lastRetry = (action, input)
         defer { isRunning = false }
 
         do {
             let settings = settingsStore.loadModelSettings()
             let config = LLMConfiguration(baseURL: settings.baseURL, model: settings.model)
-            let engine = engine ?? WorkEngine()
-            self.engine = engine
-            let output = try await engine.run(
+            let sidecar = sidecar ?? WorkSidecarClient()
+            self.sidecar = sidecar
+            let output = try await sidecar.run(
                 action: action,
                 input: input,
                 configuration: config,
@@ -68,6 +76,21 @@ final class WorkCoordinator: ObservableObject {
             persistWorkSession(action: action, input: input, output: output)
         } catch {
             errorMessage = friendlyError(error)
+            if SidecarRecovery.isRecoverable(error) {
+                sidecarIssue = SidecarIssue(sidecarName: "Work", message: errorMessage ?? "", canRetry: true)
+            } else if (error as? SidecarLaunchError) == .helperMissing {
+                sidecarIssue = SidecarIssue(sidecarName: "Work", message: errorMessage ?? "", canRetry: false)
+            }
+        }
+    }
+
+    func retrySidecar() {
+        guard let lastRetry else { return }
+        sidecarIssue = nil
+        errorMessage = nil
+        Task {
+            await sidecar?.reset()
+            await perform(action: lastRetry.action, input: lastRetry.input)
         }
     }
 
@@ -121,11 +144,10 @@ final class WorkCoordinator: ObservableObject {
     }
 
     private func friendlyError(_ error: Error) -> String {
-        if case LLMClientError.httpStatus(let code, _) = error {
-            return code == 401 ? "Invalid API key." : "Request failed (\(code))."
+        if error as? WorkSkillsError == .emptyInput {
+            return "No text to process."
         }
-        return error.localizedDescription
+        return SidecarRecovery.message(sidecarName: "Work", error: error)
     }
 }
 
-import AppKit

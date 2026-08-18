@@ -2,6 +2,7 @@ import Foundation
 import LLMClient
 import LLMSidecarClient
 import SessionStore
+import SidecarIPC
 import SettingsStore
 import Telemetry
 
@@ -27,6 +28,7 @@ final class ChatViewModel: ObservableObject {
     @Published var isGenerating = false
     @Published var attachedContext: String = ""
     @Published var errorBanner: String?
+    @Published var sidecarIssue: SidecarIssue?
 
     private var llmSidecar: LLMSidecarClient?
     private var streamTask: Task<Void, Never>?
@@ -67,6 +69,7 @@ final class ChatViewModel: ObservableObject {
         guard let sessionId = currentSessionId else { return }
 
         errorBanner = nil
+        sidecarIssue = nil
         isGenerating = true
         sendStartedAt = CFAbsoluteTimeGetCurrent()
         placeholderShownAt = CFAbsoluteTimeGetCurrent()
@@ -106,6 +109,20 @@ final class ChatViewModel: ObservableObject {
             try? appState.sessionStore.updateMessage(id: rows[index].id, body: rows[index].body, status: .cancelled)
         }
         isGenerating = false
+    }
+
+    func retrySidecar(appState: AppState) {
+        guard let sessionId = currentSessionId,
+              let assistant = rows.last(where: { $0.role == "assistant" })
+        else { return }
+        sidecarIssue = nil
+        errorBanner = nil
+        isGenerating = true
+        updateAssistant(id: assistant.id, body: "Thinking…", streaming: true)
+        streamTask = Task {
+            await llmSidecar?.reset()
+            await self.runStream(sessionId: sessionId, assistantId: assistant.id, appState: appState)
+        }
     }
 
     func attachFileContents(_ text: String, maxChars: Int = 100_000) {
@@ -177,22 +194,18 @@ final class ChatViewModel: ObservableObject {
             isGenerating = false
         } catch LLMClientError.cancelled {
             cancel(appState: appState)
-        } catch SidecarLaunchError.helperMissing {
-            let message = "LLM sidecar missing. Rebuild with bash Scripts/build_app.sh"
-            updateAssistant(id: assistantId, body: message, streaming: false, status: .error)
-            try? appState.sessionStore.updateMessage(id: assistantId, body: message, status: .error)
-            errorBanner = message
-            isGenerating = false
         } catch {
-            let message: String
-            if case LLMClientError.httpStatus(let code, _) = error {
-                message = code == 401 ? "Invalid API key" : "Request failed (\(code))"
-            } else {
-                message = error.localizedDescription
-            }
+            let message = SidecarRecovery.message(sidecarName: "LLM", error: error)
             updateAssistant(id: assistantId, body: message, streaming: false, status: .error)
             try? appState.sessionStore.updateMessage(id: assistantId, body: message, status: .error)
             errorBanner = message
+            if SidecarRecovery.isRecoverable(error) {
+                sidecarIssue = SidecarIssue(sidecarName: "LLM", message: message, canRetry: true)
+            } else if (error as? SidecarLaunchError) == .helperMissing {
+                sidecarIssue = SidecarIssue(sidecarName: "LLM", message: message, canRetry: false)
+            } else {
+                sidecarIssue = nil
+            }
             isGenerating = false
         }
     }

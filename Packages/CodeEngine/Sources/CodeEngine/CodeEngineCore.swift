@@ -11,15 +11,15 @@ public enum CodeEngineError: Error, Equatable {
     case gitFailed(String)
 }
 
-public struct PatchFileChange: Identifiable, Equatable, Sendable {
+public struct PatchFileChange: Identifiable, Equatable, Sendable, Codable {
     public let id: UUID
     public let relativePath: String
     public let oldContent: String
     public let newContent: String
     public let unifiedDiff: String
 
-    public init(relativePath: String, oldContent: String, newContent: String, unifiedDiff: String) {
-        self.id = UUID()
+    public init(id: UUID = UUID(), relativePath: String, oldContent: String, newContent: String, unifiedDiff: String) {
+        self.id = id
         self.relativePath = relativePath
         self.oldContent = oldContent
         self.newContent = newContent
@@ -27,13 +27,13 @@ public struct PatchFileChange: Identifiable, Equatable, Sendable {
     }
 }
 
-public struct PatchPreview: Identifiable, Equatable, Sendable {
+public struct PatchPreview: Identifiable, Equatable, Sendable, Codable {
     public let id: UUID
     public let summary: String
     public let changes: [PatchFileChange]
 
-    public init(summary: String, changes: [PatchFileChange]) {
-        self.id = UUID()
+    public init(id: UUID = UUID(), summary: String, changes: [PatchFileChange]) {
+        self.id = id
         self.summary = summary
         self.changes = changes
     }

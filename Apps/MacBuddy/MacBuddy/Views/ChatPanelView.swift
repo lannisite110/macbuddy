@@ -44,7 +44,28 @@ struct ChatPanelView: View {
 
             Divider()
 
-            if let banner = chat.errorBanner ?? work.errorMessage ?? code.errorMessage {
+            if let issue = chat.sidecarIssue ?? work.sidecarIssue ?? code.sidecarIssue {
+                HStack(alignment: .top, spacing: 8) {
+                    Text(issue.message)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                    Spacer()
+                    if issue.canRetry {
+                        Button("Retry") {
+                            if chat.sidecarIssue != nil {
+                                chat.retrySidecar(appState: appState)
+                            } else if work.sidecarIssue != nil {
+                                work.retrySidecar()
+                            } else {
+                                code.retrySidecar()
+                            }
+                        }
+                        .font(.caption)
+                    }
+                }
+                .padding(.horizontal, 12)
+                .padding(.top, 6)
+            } else if let banner = chat.errorBanner ?? work.errorMessage ?? code.errorMessage {
                 Text(banner)
                     .font(.caption)
                     .foregroundStyle(.red)

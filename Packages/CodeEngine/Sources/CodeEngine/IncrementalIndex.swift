@@ -71,8 +71,24 @@ public enum IncrementalIndexStore {
     }
 }
 
-public struct IncrementalIndexStats: Sendable {
+public struct IncrementalIndexStats: Sendable, Codable, Equatable {
     public let enabled: Bool
     public let unchanged: Int
     public let updated: Int
+
+    public init(enabled: Bool, unchanged: Int, updated: Int) {
+        self.enabled = enabled
+        self.unchanged = unchanged
+        self.updated = updated
+    }
+}
+
+public struct CodeOpenResult: Codable, Equatable, Sendable {
+    public let workspaceName: String
+    public let stats: IncrementalIndexStats
+
+    public init(workspaceName: String, stats: IncrementalIndexStats) {
+        self.workspaceName = workspaceName
+        self.stats = stats
+    }
 }

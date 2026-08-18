@@ -96,6 +96,11 @@ public final class SidecarServer: @unchecked Sendable {
                     lock.lock()
                     runningTasks[requestId] = task
                     lock.unlock()
+                default:
+                    if let requestId = request.requestId,
+                       let data = try? codec.encode(SidecarEvent.error(requestId: requestId, message: "unsupported on LLM sidecar")) {
+                        try? UnixSocket.writeAll(fd, data: data)
+                    }
                 }
             }
         }

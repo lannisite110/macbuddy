@@ -5,10 +5,38 @@ public enum SidecarRequest: Codable, Sendable {
     case ping
     case complete(requestId: String, configuration: LLMConfiguration, apiKey: String?, messages: [ChatMessage])
     case cancel(requestId: String)
+    case work(requestId: String, action: String, input: String, configuration: LLMConfiguration, apiKey: String?)
+    case codeOpen(requestId: String, workspacePath: String, storageDirectory: String, incrementalIndexEnabled: Bool)
+    case codeClose(requestId: String)
+    case codePatch(requestId: String, prompt: String, configuration: LLMConfiguration, apiKey: String?)
+    case codeApply(requestId: String, previewJSON: String)
+    case codeGit(requestId: String, action: String)
 
-    private enum CodingKeys: String, CodingKey { case type, requestId, configuration, apiKey, messages }
+    private enum CodingKeys: String, CodingKey {
+        case type, requestId, configuration, apiKey, messages, action, input
+        case workspacePath, storageDirectory, incrementalIndexEnabled, prompt, previewJSON, gitAction
+    }
 
-    private enum Kind: String, Codable { case ping, complete, cancel }
+    private enum Kind: String, Codable {
+        case ping, complete, cancel, work
+        case codeOpen, codeClose, codePatch, codeApply, codeGit
+    }
+
+    public var requestId: String? {
+        switch self {
+        case .ping:
+            return nil
+        case let .complete(requestId, _, _, _),
+             let .cancel(requestId),
+             let .work(requestId, _, _, _, _),
+             let .codeOpen(requestId, _, _, _),
+             let .codeClose(requestId),
+             let .codePatch(requestId, _, _, _),
+             let .codeApply(requestId, _),
+             let .codeGit(requestId, _):
+            return requestId
+        }
+    }
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
@@ -24,6 +52,40 @@ public enum SidecarRequest: Codable, Sendable {
             )
         case .cancel:
             self = try .cancel(requestId: container.decode(String.self, forKey: .requestId))
+        case .work:
+            self = try .work(
+                requestId: container.decode(String.self, forKey: .requestId),
+                action: container.decode(String.self, forKey: .action),
+                input: container.decode(String.self, forKey: .input),
+                configuration: container.decode(LLMConfiguration.self, forKey: .configuration),
+                apiKey: container.decodeIfPresent(String.self, forKey: .apiKey)
+            )
+        case .codeOpen:
+            self = try .codeOpen(
+                requestId: container.decode(String.self, forKey: .requestId),
+                workspacePath: container.decode(String.self, forKey: .workspacePath),
+                storageDirectory: container.decode(String.self, forKey: .storageDirectory),
+                incrementalIndexEnabled: container.decode(Bool.self, forKey: .incrementalIndexEnabled)
+            )
+        case .codeClose:
+            self = try .codeClose(requestId: container.decode(String.self, forKey: .requestId))
+        case .codePatch:
+            self = try .codePatch(
+                requestId: container.decode(String.self, forKey: .requestId),
+                prompt: container.decode(String.self, forKey: .prompt),
+                configuration: container.decode(LLMConfiguration.self, forKey: .configuration),
+                apiKey: container.decodeIfPresent(String.self, forKey: .apiKey)
+            )
+        case .codeApply:
+            self = try .codeApply(
+                requestId: container.decode(String.self, forKey: .requestId),
+                previewJSON: container.decode(String.self, forKey: .previewJSON)
+            )
+        case .codeGit:
+            self = try .codeGit(
+                requestId: container.decode(String.self, forKey: .requestId),
+                action: container.decode(String.self, forKey: .gitAction)
+            )
         }
     }
 
@@ -41,6 +103,36 @@ public enum SidecarRequest: Codable, Sendable {
         case let .cancel(requestId):
             try container.encode(Kind.cancel, forKey: .type)
             try container.encode(requestId, forKey: .requestId)
+        case let .work(requestId, action, input, configuration, apiKey):
+            try container.encode(Kind.work, forKey: .type)
+            try container.encode(requestId, forKey: .requestId)
+            try container.encode(action, forKey: .action)
+            try container.encode(input, forKey: .input)
+            try container.encode(configuration, forKey: .configuration)
+            try container.encodeIfPresent(apiKey, forKey: .apiKey)
+        case let .codeOpen(requestId, workspacePath, storageDirectory, incrementalIndexEnabled):
+            try container.encode(Kind.codeOpen, forKey: .type)
+            try container.encode(requestId, forKey: .requestId)
+            try container.encode(workspacePath, forKey: .workspacePath)
+            try container.encode(storageDirectory, forKey: .storageDirectory)
+            try container.encode(incrementalIndexEnabled, forKey: .incrementalIndexEnabled)
+        case let .codeClose(requestId):
+            try container.encode(Kind.codeClose, forKey: .type)
+            try container.encode(requestId, forKey: .requestId)
+        case let .codePatch(requestId, prompt, configuration, apiKey):
+            try container.encode(Kind.codePatch, forKey: .type)
+            try container.encode(requestId, forKey: .requestId)
+            try container.encode(prompt, forKey: .prompt)
+            try container.encode(configuration, forKey: .configuration)
+            try container.encodeIfPresent(apiKey, forKey: .apiKey)
+        case let .codeApply(requestId, previewJSON):
+            try container.encode(Kind.codeApply, forKey: .type)
+            try container.encode(requestId, forKey: .requestId)
+            try container.encode(previewJSON, forKey: .previewJSON)
+        case let .codeGit(requestId, action):
+            try container.encode(Kind.codeGit, forKey: .type)
+            try container.encode(requestId, forKey: .requestId)
+            try container.encode(action, forKey: .gitAction)
         }
     }
 }
