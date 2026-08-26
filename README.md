@@ -20,9 +20,10 @@ open Apps/MacBuddy/build/Debug/MacBuddy.app
 
 1. Menu bar icon **MB** appears (no Dock icon).
 2. `⌘⇧Space` toggles the chat panel.
-3. **MB → Settings → General** — set Base URL and Model:
-   - Local Ollama: `http://127.0.0.1:11434/v1`, model e.g. `llama3.2`
-   - OpenAI: `https://api.openai.com/v1` + API key
+3. **MB → Settings → General** — pick Provider or set Base URL + Model:
+   - Local Ollama: Provider **Ollama** → `http://127.0.0.1:11434/v1`, model e.g. `llama3.2`
+   - Unsloth Desktop: Provider **Unsloth Desktop** → `http://127.0.0.1:8888/v1` + `sk-unsloth-…` key (see [docs/unsloth-connect.md](docs/unsloth-connect.md))
+   - OpenAI / custom: `https://api.openai.com/v1` (or any `/v1`) + API key
 4. For **Work → selection actions**: enable MacBuddy in **System Settings → Privacy & Security → Accessibility**.
 
 ## Features by phase
