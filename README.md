@@ -9,10 +9,11 @@ Built for macOS 14+ (Sonoma). SwiftUI shell + Swift packages. LLM via OpenAI-com
 **Requirements:** macOS 14+, Swift 5.10+, Xcode 15+ (optional; SwiftPM build works)
 
 ```bash
-# Build .app bundle
-bash Scripts/build_app.sh
+# Build + launch (one line from repo root)
+./Scripts/run.sh
 
-# Launch
+# Or build only, then open manually
+bash Scripts/build_app.sh
 open Apps/MacBuddy/build/Debug/MacBuddy.app
 ```
 
