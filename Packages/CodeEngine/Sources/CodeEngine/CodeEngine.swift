@@ -93,10 +93,11 @@ public actor CodeEngine {
 
         var changes: [PatchFileChange] = []
         for item in parsed {
-            let old = (try? FileReader.read(relativePath: item.path, workspace: workspace)) ?? ""
-            let diff = UnifiedDiff.make(path: item.path, old: old, new: item.content)
+            let relative = try WorkspacePath.normalizedRelativePath(item.path, workspace: workspace)
+            let old = (try? FileReader.read(relativePath: relative, workspace: workspace)) ?? ""
+            let diff = UnifiedDiff.make(path: relative, old: old, new: item.content)
             if old != item.content {
-                changes.append(PatchFileChange(relativePath: item.path, oldContent: old, newContent: item.content, unifiedDiff: diff))
+                changes.append(PatchFileChange(relativePath: relative, oldContent: old, newContent: item.content, unifiedDiff: diff))
             }
         }
         guard !changes.isEmpty else { throw CodeEngineError.invalidPatch }

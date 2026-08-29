@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### Security
+- **CodeEngine:** reject workspace path traversal (`..`, absolute paths, symlink breakout) in `FileReader` and `PatchApplier` via `WorkspacePath`
+- **CodeEngine:** tighten `CommandRunner` — git subcommand whitelist (`diff`, `log`, `status`, `show`, `rev-parse`); block `-c` / `--config` / alias injection
+- **SidecarIPC:** LLM sidecar ping reports `latencyMs: 0` (RTT belongs on client; handler timing was meaningless)
+
 ## v0.2.2 — 2026-08-18
 
 ### XPC / sidecar (Code)
