@@ -48,9 +48,8 @@ public final class SidecarServer: @unchecked Sendable {
                 guard let request = try? codec.decode(SidecarRequest.self, from: line) else { continue }
                 switch request {
                 case .ping:
-                    let started = CFAbsoluteTimeGetCurrent()
-                    let ms = (CFAbsoluteTimeGetCurrent() - started) * 1000
-                    if let data = try? codec.encode(SidecarEvent.pong(latencyMs: ms)) {
+                    // Round-trip latency is measured on the client; handler work is negligible.
+                    if let data = try? codec.encode(SidecarEvent.pong(latencyMs: 0)) {
                         try? UnixSocket.writeAll(fd, data: data)
                     }
                 case let .cancel(requestId):

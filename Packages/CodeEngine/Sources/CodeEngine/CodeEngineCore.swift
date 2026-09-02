@@ -4,6 +4,7 @@ public enum CodeEngineError: Error, Equatable {
     case noWorkspace
     case fileNotFound(String)
     case fileTooLarge(String)
+    case pathOutsideWorkspace(String)
     case invalidPatch
     case applyFailed(String)
     case commandNotAllowed(String)
@@ -143,7 +144,7 @@ public enum FileReader {
     public static let maxBytes = 256 * 1024
 
     public static func read(relativePath: String, workspace: URL) throws -> String {
-        let url = workspace.appendingPathComponent(relativePath)
+        let url = try WorkspacePath.resolve(relativePath: relativePath, workspace: workspace)
         guard FileManager.default.fileExists(atPath: url.path) else {
             throw CodeEngineError.fileNotFound(relativePath)
         }
@@ -152,6 +153,52 @@ public enum FileReader {
             throw CodeEngineError.fileTooLarge(relativePath)
         }
         return try String(contentsOf: url, encoding: .utf8)
+    }
+}
+
+/// Rejects paths that escape the workspace root (`..`, absolute paths, symlink breakout).
+public enum WorkspacePath {
+    public static func resolve(relativePath: String, workspace: URL) throws -> URL {
+        let trimmed = relativePath.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            throw CodeEngineError.pathOutsideWorkspace(relativePath)
+        }
+        if trimmed.hasPrefix("/") || trimmed.hasPrefix("\\") {
+            throw CodeEngineError.pathOutsideWorkspace(relativePath)
+        }
+        if trimmed.contains("\0") {
+            throw CodeEngineError.pathOutsideWorkspace(relativePath)
+        }
+
+        let workspaceRoot = workspace.standardizedFileURL.resolvingSymlinksInPath()
+        var candidate = workspaceRoot
+        for part in trimmed.split(separator: "/", omittingEmptySubsequences: true) {
+            let segment = String(part)
+            if segment == ".." {
+                throw CodeEngineError.pathOutsideWorkspace(relativePath)
+            }
+            if segment == "." { continue }
+            candidate.appendPathComponent(segment, isDirectory: false)
+        }
+
+        let resolved = candidate.standardizedFileURL.resolvingSymlinksInPath()
+        let rootPath = workspaceRoot.path
+        let resolvedPath = resolved.path
+        let isInside = resolvedPath == rootPath || resolvedPath.hasPrefix(rootPath + "/")
+        guard isInside else {
+            throw CodeEngineError.pathOutsideWorkspace(relativePath)
+        }
+        return resolved
+    }
+
+    /// Validates `relativePath` and returns a normalized workspace-relative path string.
+    public static func normalizedRelativePath(_ relativePath: String, workspace: URL) throws -> String {
+        let resolved = try resolve(relativePath: relativePath, workspace: workspace)
+        let rootPath = workspace.standardizedFileURL.resolvingSymlinksInPath().path
+        guard resolved.path.hasPrefix(rootPath + "/") else {
+            throw CodeEngineError.pathOutsideWorkspace(relativePath)
+        }
+        return String(resolved.path.dropFirst(rootPath.count + 1))
     }
 }
 
@@ -201,6 +248,11 @@ public enum CommandRunner {
     public static let allowlist: Set<String> = ["git", "ls", "rg"]
     public static let timeoutSeconds: TimeInterval = 10
 
+    private static let allowedGitSubcommands: Set<String> = ["diff", "log", "status", "show", "rev-parse"]
+    private static let forbiddenGitFlags: Set<String> = [
+        "-c", "--config", "--exec", "--upload-pack", "--receive-pack", "--ext-diff", "-e",
+    ]
+
     public static func run(executable: String, arguments: [String], workspace: URL) throws -> (stdout: String, stderr: String) {
         let name = (executable as NSString).lastPathComponent
         guard allowlist.contains(name) else {
@@ -210,6 +262,11 @@ public enum CommandRunner {
             if arg.contains("curl") || arg.contains("rm") {
                 throw CodeEngineError.commandNotAllowed(arg)
             }
+        }
+        if name == "git" {
+            try validateGitArguments(arguments)
+        } else if name == "ls" || name == "rg" {
+            try validatePathArguments(arguments)
         }
 
         let process = Process()
@@ -245,11 +302,36 @@ public enum CommandRunner {
         }
         return (stdout, stderr)
     }
+
+    private static func validateGitArguments(_ arguments: [String]) throws {
+        guard let subcommand = arguments.first(where: { !$0.hasPrefix("-") }) else {
+            throw CodeEngineError.commandNotAllowed("git (missing subcommand)")
+        }
+        guard allowedGitSubcommands.contains(subcommand) else {
+            throw CodeEngineError.commandNotAllowed("git \(subcommand)")
+        }
+        for arg in arguments {
+            if forbiddenGitFlags.contains(arg) || arg.hasPrefix("-c") || arg.hasPrefix("--config") {
+                throw CodeEngineError.commandNotAllowed(arg)
+            }
+            if arg.contains("!") {
+                throw CodeEngineError.commandNotAllowed(arg)
+            }
+        }
+    }
+
+    private static func validatePathArguments(_ arguments: [String]) throws {
+        for arg in arguments where !arg.hasPrefix("-") {
+            if arg.contains("..") || arg.hasPrefix("/") {
+                throw CodeEngineError.commandNotAllowed(arg)
+            }
+        }
+    }
 }
 
 public enum PatchApplier {
     public static func apply(change: PatchFileChange, workspace: URL) throws {
-        let url = workspace.appendingPathComponent(change.relativePath)
+        let url = try WorkspacePath.resolve(relativePath: change.relativePath, workspace: workspace)
         let dir = url.deletingLastPathComponent()
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         do {
