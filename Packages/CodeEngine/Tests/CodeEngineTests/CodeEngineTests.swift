@@ -69,7 +69,7 @@ final class CodeEngineTests: XCTestCase {
 
         XCTAssertThrowsError(try WorkspacePath.resolve(relativePath: "../outside.txt", workspace: root)) { error in
             guard case CodeEngineError.pathOutsideWorkspace = error else {
-                XCTFail("expected pathOutsideWorkspace")
+                return XCTFail("expected pathOutsideWorkspace")
             }
         }
     }
@@ -81,7 +81,7 @@ final class CodeEngineTests: XCTestCase {
 
         XCTAssertThrowsError(try WorkspacePath.resolve(relativePath: "/etc/passwd", workspace: root)) { error in
             guard case CodeEngineError.pathOutsideWorkspace = error else {
-                XCTFail("expected pathOutsideWorkspace")
+                return XCTFail("expected pathOutsideWorkspace")
             }
         }
     }
@@ -93,7 +93,7 @@ final class CodeEngineTests: XCTestCase {
 
         XCTAssertThrowsError(try FileReader.read(relativePath: "../outside.txt", workspace: root)) { error in
             guard case CodeEngineError.pathOutsideWorkspace = error else {
-                XCTFail("expected pathOutsideWorkspace")
+                return XCTFail("expected pathOutsideWorkspace")
             }
         }
     }
